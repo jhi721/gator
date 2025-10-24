@@ -2,9 +2,11 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
+	"path/filepath"
 )
+
+const configName = ".gatorconfig.json"
 
 type Config struct {
 	DbUrl           string `json:"db_url"`
@@ -17,7 +19,7 @@ func getConfigFilepath() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/.gatorconfig.json", homedir), nil
+	return filepath.Join(homedir, configName), nil
 }
 
 func (c *Config) SetUser(userName string) error {

@@ -1,15 +1,19 @@
 package main
 
 import (
-	"fmt"
+	"database/sql"
 	"log"
 	"os"
 
 	"github.com/jhi721/gator/internal/config"
+	"github.com/jhi721/gator/internal/database"
+	_ "github.com/lib/pq"
 )
 
 type state struct {
-	config *config.Config
+	config  *config.Config
+	conn    *sql.DB
+	queries *database.Queries
 }
 
 func main() {
@@ -19,24 +23,33 @@ func main() {
 		log.Fatal(err)
 	}
 
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	queries := database.New(db)
+
 	s := &state{
-		config: &cfg,
+		config:  &cfg,
+		conn:    db,
+		queries: queries,
 	}
 
 	commands := commands{
 		handlers: make(map[string]func(*state, command) error),
 	}
 
-	if err := commands.register("login", handlerLogin); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	commands.register("login", handlerLogin)
+	commands.register("register", handlerRegister)
+	commands.register("users", handlerUsers)
+
+	commands.register("reset", handlerReset)
 
 	cliArgs := os.Args
 
 	if len(cliArgs) < 2 {
-		fmt.Println("not enough args were provided")
-		os.Exit(1)
+		log.Fatal("not enough args were provided")
 	}
 
 	cmdName := cliArgs[1]
@@ -48,7 +61,6 @@ func main() {
 	}
 
 	if err := commands.run(s, cmd); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
