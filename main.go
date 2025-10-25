@@ -45,8 +45,12 @@ func main() {
 	commands.register("users", handlerUsers)
 
 	commands.register("reset", handlerReset)
+
 	commands.register("agg", handlerAgg)
 	commands.register("addfeed", handlerAddFeed)
+	commands.register("feeds", handlerFeeds)
+	commands.register("follow", handlerFollow)
+	commands.register("following", handlerFollowing)
 
 	cliArgs := os.Args
 
