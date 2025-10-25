@@ -21,7 +21,7 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 2 {
 		return fmt.Errorf("please provide two args")
 	}
@@ -29,18 +29,13 @@ func handlerAddFeed(s *state, cmd command) error {
 	name := cmd.args[0]
 	url := cmd.args[1]
 
-	userFromDb, err := s.queries.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err
-	}
-
 	feed, err := s.queries.CreateFeed(context.Background(), database.CreateFeedParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Name:      name,
 		Url:       url,
-		UserID:    userFromDb.ID,
+		UserID:    user.ID,
 	})
 	if err != nil {
 		return err
@@ -75,7 +70,7 @@ func handlerFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("please provide url as arg")
 	}
@@ -87,16 +82,11 @@ func handlerFollow(s *state, cmd command) error {
 		return err
 	}
 
-	userFromDb, err := s.queries.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err
-	}
-
 	follow, err := s.queries.CreateFeedFollow(context.Background(), database.CreateFeedFollowParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		UserID:    userFromDb.ID,
+		UserID:    user.ID,
 		FeedID:    feedFromDb.ID,
 	})
 	if err != nil {
@@ -109,14 +99,37 @@ func handlerFollow(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollowing(s *state, cmd command) error {
-	follows, err := s.queries.GetFeedFollowsForUser(context.Background(), s.config.CurrentUserName)
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	follows, err := s.queries.GetFeedFollowsForUser(context.Background(), user.Name)
 	if err != nil {
 		return err
 	}
 
 	for _, follow := range follows {
 		fmt.Println(follow.FeedName)
+	}
+
+	return nil
+}
+
+func handleUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("please provide url arg")
+	}
+
+	url := cmd.args[0]
+
+	feedFromDb, err := s.queries.GetFeed(context.Background(), url)
+	if err != nil {
+		return err
+	}
+
+	err = s.queries.DeleteFeedFollow(context.Background(), database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: feedFromDb.ID,
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
