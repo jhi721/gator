@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -11,14 +12,21 @@ import (
 )
 
 func handlerAgg(s *state, cmd command) error {
-	feed, err := rss.FetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
+	if len(cmd.args) < 1 {
+		return fmt.Errorf("please provide interval arg")
+	}
+
+	interval, err := time.ParseDuration(cmd.args[0])
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(feed)
+	fmt.Printf("Collecting feed every %v\n", interval)
 
-	return nil
+	ticker := time.NewTicker(interval)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
@@ -112,7 +120,7 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil
 }
 
-func handleUnfollow(s *state, cmd command, user database.User) error {
+func handlerUnfollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) < 1 {
 		return fmt.Errorf("please provide url arg")
 	}
@@ -130,6 +138,62 @@ func handleUnfollow(s *state, cmd command, user database.User) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func scrapeFeeds(s *state) (database.Feed, error) {
+	feedToFetch, err := s.queries.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return database.Feed{}, err
+	}
+
+	err = s.queries.MarkFeedFetched(context.Background(), database.MarkFeedFetchedParams{
+		ID: feedToFetch.ID,
+		LastFetchedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return database.Feed{}, err
+	}
+
+	feed, err := rss.FetchFeed(context.Background(), feedToFetch.Url)
+	if err != nil {
+		return database.Feed{}, err
+	}
+
+	for _, item := range feed.Channel.Item {
+		publishedAt, err := rss.ParsePubDate(item.PubDate)
+		if err != nil {
+			continue
+		}
+
+		s.queries.CreatePost(context.Background(), database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: item.Description,
+			PublishedAt: publishedAt,
+			FeedID:      feedToFetch.ID,
+		})
+	}
+
+	return feedToFetch, nil
+}
+
+func handlerBrowse(s *state, cmd command) error {
+	posts, err := s.queries.GetPostsForUser(context.Background(), 10)
+	if err != nil {
+		return err
+	}
+
+	for _, post := range posts {
+		fmt.Println(post.Title)
 	}
 
 	return nil

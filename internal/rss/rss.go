@@ -7,6 +7,8 @@ import (
 	"html"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 )
 
 type RSSFeed struct {
@@ -63,4 +65,36 @@ func FetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	}
 
 	return &feed, nil
+}
+
+func ParsePubDate(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, " ("); i != -1 {
+		s = strings.TrimSpace(s[:i])
+	}
+
+	layouts := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC822Z,
+		time.RFC822,
+		time.RFC3339,
+		time.RFC3339Nano,
+		"Mon, _2 Jan 2006 15:04:05 -0700",
+		"Mon, _2 Jan 2006 15:04:05 MST",
+		"02 Jan 2006 15:04:05 -0700",
+		"02 Jan 2006 15:04:05 MST",
+		"Mon Jan _2 15:04:05 2006",
+	}
+
+	var lastErr error
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		} else {
+			lastErr = err
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("unsupported pubDate format %s: %w", s, lastErr)
 }

@@ -12,7 +12,6 @@ import (
 
 type state struct {
 	config  *config.Config
-	conn    *sql.DB
 	queries *database.Queries
 }
 
@@ -32,7 +31,6 @@ func main() {
 
 	s := &state{
 		config:  &cfg,
-		conn:    db,
 		queries: queries,
 	}
 
@@ -51,7 +49,8 @@ func main() {
 	commands.register("feeds", handlerFeeds)
 	commands.register("follow", middlewareLoggedIn(handlerFollow))
 	commands.register("following", middlewareLoggedIn(handlerFollowing))
-	commands.register("unfollow", middlewareLoggedIn(handleUnfollow))
+	commands.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	commands.register("browse", handlerBrowse)
 
 	cliArgs := os.Args
 
